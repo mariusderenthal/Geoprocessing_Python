@@ -8,9 +8,9 @@
 # ####################################### WORKFLOW ############################################################ #
 """
 1. Generate a stratified random sample of 500 points across the MODIS extent.
-- reproject landsat into modis projection (instead of GeoTIFF we use Memory to do it on the fly)
-- resample landsat to MODIS resolution (book chapter - mean )
-- reclassify landsat image into classes (strata) or continious data stratify
+- reproject landsat into modis projection (instead of GeoTIFF we use Memory to do it on the fly)                $$$
+- resample landsat to MODIS resolution (book chapter - mean )                                                   $$$
+- reclassify landsat image into classes (strata) or continuous data stratify
 - create mask using valid MODIS raster
 - apply mask to Landsat image
 - generate sample locations
@@ -39,7 +39,10 @@ printed to the console.
 # ####################################### LOAD REQUIRED LIBRARIES ############################################# #
 import time
 import os
-import gdal
+import gdal, gdalconst
+#import gdal_merge as gm
+
+import subprocess, glob
 import math
 import csv
 from osgeo import ogr
@@ -67,11 +70,17 @@ print("--------------------------------------------------------")
 print("Starting process, time: " + starttime)
 print("")
 # ####################################### FUNCTIONS ########################################################### #
+
 # ####################################### FOLDER PATHS & global variables ##################################### #
 # Folder containing the working data
-path_data_folder = '/Users/mariusderenthal/Google Drive/Global Change Geography/4.Semester/Geoprocessing_Python/Data/Assignment10_data/'
-landsat_p = "landsat8_metrics1416.tif"
-samples = 'landsat8_metrics1416_samples.csv'
+path_data_folder = '/Users/mariusderenthal/Google Drive/Global Change Geography/4.Semester/Geoprocessing_Python/MAP/MAP_data/'
+landsat = "Landsat_TC/CHACO_TreeCover2015.tif"
+modis = 'MODIS_EVI/'
+
+# create folder to save intermediate results
+inter = (path_data_folder + 'inter')
+if not os.path.exists(inter):
+    os.makedirs(inter)
 
 # ####################################### PROJECTION ########################################################## #
 '''
@@ -142,7 +151,60 @@ inDataSet = None
 outDataSet = None
 '''
 # ####################################### Data ################################################################ #
+land = gdal.Open(path_data_folder + landsat)
+gt_land = land.GetGeoTransform()
+landsat_arr = land.ReadAsArray()
 
+# mosaicing
+# https://gis.stackexchange.com/questions/44003/python-equivalent-of-gdalbuildvrt#44048
+tiles_list = glob.glob(path_data_folder + modis +"*.tif")
+output = (path_data_folder + '/inter/mosaic.tif')
+vrt_options = gdal.BuildVRTOptions(resampleAlg='cubic', addAlpha=True)
+mosaic = gdal.BuildVRT(output, tiles_list, options=vrt_options)
+
+# Resampling
+# https://gis.stackexchange.com/questions/234022/resampling-a-raster-from-python-without-using-gdalwarp
+inputfile = (path_data_folder + landsat)
+input = gdal.Open(inputfile)
+inputProj = input.GetProjection()
+inputTrans = input.GetGeoTransform()
+
+referenceProj = mosaic.GetProjection()
+referenceTrans = mosaic.GetGeoTransform()
+bandreference = mosaic.GetRasterBand(1)
+x = mosaic.RasterXSize
+y = mosaic.RasterYSize
+
+resampled = (path_data_folder + 'inter/resampled.tif')
+driver= gdal.GetDriverByName('GTiff')
+output = driver.Create(resampled,x,y,1,bandreference.DataType)
+output.SetGeoTransform(referenceTrans)
+output.SetProjection(referenceProj)
+
+gdal.ReprojectImage(input,output,inputProj,referenceProj,gdalconst.GRA_Average) # use mean for resampling approach
+#del resampled
+"""
+referencefile = path_data_folder + modis + 'MODIS_EVI_h0_v0.tif'
+reference = gdal.Open(referencefile)
+referenceProj = reference.GetProjection()
+referenceTrans = reference.GetGeoTransform()
+bandreference = reference.GetRasterBand(1)
+x = reference.RasterXSize
+y = reference.RasterYSize
+
+outputfile = (path_data_folder + modis + 'resampled.tif')
+driver= gdal.GetDriverByName('GTiff')
+output = driver.Create(outputfile,x,y,1,bandreference.DataType)
+output.SetGeoTransform(referenceTrans)
+output.SetProjection(referenceProj)
+
+gdal.ReprojectImage(input,output,inputProj,referenceProj,gdalconst.GRA_Bilinear)
+
+del output
+"""
+
+
+# create mask
 
 # ####################################### PROCESSING ########################################################## #
 
