@@ -10,7 +10,7 @@
 1. Generate a stratified random sample of 500 points across the MODIS extent.
 - reproject landsat into modis projection (instead of GeoTIFF we use Memory to do it on the fly)                $$$
 - resample landsat to MODIS resolution (book chapter - mean )                                                   $$$
-- reclassify landsat image into classes (strata) or continuous data stratify
+- reclassify landsat image into classes (strata) or continuous data stratify                                    $$$
 - create mask using valid MODIS raster
 - apply mask to Landsat image
 - generate sample locations
@@ -156,13 +156,18 @@ land = gdal.Open(path_data_folder + landsat)
 #landsat_arr = land.ReadAsArray()
 # ####################################### PROCESSING ########################################################## #
 # mosaicing
+"""
 # https://gis.stackexchange.com/questions/44003/python-equivalent-of-gdalbuildvrt#44048
 tiles_list = glob.glob(path_data_folder + modis +"*.tif")
 output = (path_data_folder + '/inter/mosaic.tif')
 vrt_options = gdal.BuildVRTOptions(resampleAlg='cubic', addAlpha=True)
 mosaic = gdal.BuildVRT(output, tiles_list, options=vrt_options)
+"""
+mosaic = gdal.Open("/Users/mariusderenthal/Google Drive/Global Change Geography/4.Semester/Geoprocessing_Python/MAP/MAP_data/inter/mosaic.tif")
+modis_arr = mosaic.ReadAsArray()
 
-# Resampling
+# resampling
+""" 
 # https://gis.stackexchange.com/questions/234022/resampling-a-raster-from-python-without-using-gdalwarp
 inputfile = (path_data_folder + landsat)
 land = gdal.Open(inputfile)
@@ -182,42 +187,13 @@ resamp.SetGeoTransform(referenceTrans)
 resamp.SetProjection(referenceProj)
 
 gdal.ReprojectImage(land,resamp,inputProj,referenceProj,gdalconst.GRA_Average) # use mean for resampling approach
-#del resampled
-
-
-# create mask
-modis_arr  = mosaic.ReadAsArray()
-print(modis_arr.shape)
-#modis_arr = np.delete(modis_arr, 47, axis=0) # mosaicing adds a extra band which has to be removed beforehand
-modis_arr = modis_arr[0:46,:,:]
-print("MODIS SHAPE: ",modis_arr.shape)
-#print(modis_arr.ndim)
-print("MODIS MIN: ",modis_arr.min())
-print("MODIS MAX: ",modis_arr.max())
-
-nodata = -9999
-
-
-# apply mask
-resamp_arr = resamp.ReadAsArray()
-print("LANDSAT SHAPE: ",resamp_arr.shape)
-#print(modis_arr.ndim)
-print("LANDSAT MIN: ",resamp_arr.min())
-print("LANDSAT MAX: ",resamp_arr.max())
-
-nodatamask = modis_arr == nodata
-#print(nodatamask.shape)
-#print(nodatamask)
-
-
-
-#landsat_arr_m = resamp_arr[nodatamask] = nodata
-
-print("----------------------------------------------")
+del resampled
+"""
+#resamp = gdal.Open("/Users/mariusderenthal/Google Drive/Global Change Geography/4.Semester/Geoprocessing_Python/MAP/MAP_data/inter/resampled.tif")
+#resamp_arr = resamp.ReadAsArray()
 
 # reclassify
-#print(resamp_arr)
-
+"""
 #resamp_arr[resamp_arr < 0] = 0
 resamp_arr[(resamp_arr >= 0) &(resamp_arr < 1000)] = 1
 resamp_arr[(resamp_arr >= 1000) & (resamp_arr < 2000)] = 2
@@ -231,54 +207,6 @@ resamp_arr[(resamp_arr >= 8000) & (resamp_arr < 9000)] = 9
 resamp_arr[(resamp_arr >= 9000) & (resamp_arr < 10000)] = 10
 #resamp_arr[resamp_arr >= 10000 ] = 11
 
-print(resamp_arr)
-'''
-driver = gdal.GetDriverByName('GTiff')
-file = gdal.Open(path_data_folder + landsat)
-band = file.GetRasterBand(1)
-lista = band.ReadAsArray()
-resamp_arr = lista
-
-# reclassification
-for j in  range(file.RasterXSize):
-    for i in  range(file.RasterYSize):
-        if lista[i,j] >= 0 and lista[i,j] < 1000:
-            lista[i,j] = 1
-        elif lista[i,j] >= 1000 and lista[i,j] < 2000:
-            lista[i,j] = 2
-        elif lista[i, j] >= 2000 and lista[i, j] < 3000:
-            lista[i,j] = 3
-        elif lista[i,j] >= 3000 and lista[i,j] < 4000:
-            lista[i,j] = 4
-        elif lista[i,j] >= 4000 and lista[i,j] < 5000:
-            lista[i,j] = 5
-        elif lista[i,j] >= 5000 and lista[i,j] < 6000:
-            lista[i,j] = 6
-        elif lista[i,j] >= 6000 and lista[i,j] < 7000:
-            lista[i,j] = 7
-        elif lista[i,j] >= 7000 and lista[i,j] < 8000:
-            lista[i,j] = 8
-        elif lista[i,j] >= 8000 and lista[i,j] < 9000:
-            lista[i,j] = 9
-        elif lista[i,j] >= 9000 and lista[i,j] <= 10000:
-            lista[i,j] = 10
-        elif lista[i,j] >= 10001:
-            lista[i,j] = 11
-    print(j)
-
-lista[np.where(resamp_arr < 0)] = 0
-lista[np.where(resamp_arr >= 0 & resamp_arr < 1000)] = 1
-lista[np.where(resamp_arr >= 1000 & resamp_arr < 2000)] = 2
-lista[np.where(resamp_arr >= 2000 & resamp_arr < 3000)] = 3
-lista[np.where(resamp_arr >= 3000 & resamp_arr < 4000)] = 4
-lista[np.where(resamp_arr >= 4000 & resamp_arr < 5000)] = 5
-lista[np.where(resamp_arr >= 5000 & resamp_arr < 6000)] = 6
-lista[np.where(resamp_arr >= 6000 & resamp_arr < 7000)] = 7
-lista[np.where(resamp_arr >= 7000 & resamp_arr < 8000)] = 8
-lista[np.where(resamp_arr >= 8000 & resamp_arr < 9000)] = 9
-lista[np.where(resamp_arr >= 9000 & resamp_arr <= 10000)] = 10
-'''
-
 # create new file
 file2 = driver.Create(path_data_folder + 'inter/reclassified.tif', resamp.RasterXSize , resamp.RasterYSize , 1)
 file2.GetRasterBand(1).WriteArray(resamp_arr)
@@ -289,9 +217,91 @@ georef = resamp.GetGeoTransform()
 file2.SetProjection(proj)
 file2.SetGeoTransform(georef)
 file2.FlushCache()
+"""
+reclass = gdal.Open("/Users/mariusderenthal/Google Drive/Global Change Geography/4.Semester/Geoprocessing_Python/MAP/MAP_data/inter/reclassified.tif")
+reclass_arr = reclass.ReadAsArray()
+
+print("Done loading files at:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
 
 
+# create mask
+nodata = -9999
 
+
+#modis_arr[(modis_arr == nodata)] = np.nan
+
+#print(modis_arr.shape)
+modis_arr = modis_arr[0:46,:,:]
+print("MODIS SHAPE: ",modis_arr.shape)
+print("MODIS MIN: ",modis_arr.min())
+print("MODIS MAX: ",modis_arr.max())
+print(modis_arr)
+
+#modis_arr[modis_arr == np.nan] = nodata
+#modis_arr = np.putmask(modis_arr, modis_arr == np.nan, nodata)
+#print(modis_arr)
+#np.min(modis_arr, axis=1)
+
+minimum = np.min(modis_arr, axis=0)
+print("MIN SHAPE: ",minimum.shape)
+print("MIN MIN: ",minimum.min())
+print("MIN MAX: ",minimum.max())
+print(minimum)
+
+maximum = np.max(modis_arr, axis=0)
+print("MAX SHAPE: ",maximum.shape)
+print("MAX MIN: ",maximum.min())
+print("MAX MAX: ",maximum.max())
+print(maximum)
+
+#nodatamask = test == nodata
+#print("Mask SHAPE: ",nodatamask.shape)
+#print("Mask MIN: ",nodatamask.min())
+#print("Mask MAX: ",nodatamask.max())
+
+mask = maximum == nodata
+print(mask)
+
+# apply mask
+print("LANDSAT SHAPE: ",reclass_arr.shape)
+print("LANDSAT MIN: ",reclass_arr.min())
+print("LANDSAT MAX: ",reclass_arr.max())
+
+#landsat_arr_m = resamp_arr[nodatamask] = nodata
+landsat_arr_m = np.where(mask == True, nodata, reclass_arr)
+print("Masked Landsat SHAPE: ",landsat_arr_m.shape)
+print("Masked Landsat MIN: ",landsat_arr_m.min())
+print("Masked Landsat MAX: ",landsat_arr_m.max())
+print(landsat_arr_m)
+
+
+# stratified random sampling (Ass.09)
+"""
+for classes in np.unique(resamp_arr):
+        inds = np.transpose(np.where(resamp_arr == classes))
+
+        if inds.shape[0] >= 50:
+            samplesize = 50
+        else:
+            samplesize = inds.shape[0]
+
+        i = np.random.choice(inds.shape[0], samplesize, replace=False)
+        indsselected = inds[i, :]
+        pixel_v = resamp_arr[:, indsselected[:,0], indsselected[:,1]]
+        pixel_m = pixel_v.mean(axis=1)
+
+
+        df = df.append({#'LC_Class': classes,
+                           'Band02': pixel_m[0],
+                           'Band03': pixel_m[1],
+                           'Band04': pixel_m[2],
+                           'Band05': pixel_m[3],
+                           'Band06': pixel_m[4],
+                           'Band07': pixel_m[5]},
+                       ignore_index=True)
+
+df_trans = df.T
+"""
 # ####################################### END TIME-COUNT AND PRINT TIME STATS##################
 print("")
 endtime = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
