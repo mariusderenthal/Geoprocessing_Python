@@ -165,7 +165,8 @@ mosaic = gdal.BuildVRT(output, tiles_list, options=vrt_options)
 """
 mosaic = gdal.Open("/Users/mariusderenthal/Google Drive/Global Change Geography/4.Semester/Geoprocessing_Python/MAP/MAP_data/inter/mosaic.tif")
 modis_arr = mosaic.ReadAsArray()
-
+#modis_arr = np.rint(modis_arr)
+#modis_arr = modis_arr.astype(np./64)
 # resampling
 """ 
 # https://gis.stackexchange.com/questions/234022/resampling-a-raster-from-python-without-using-gdalwarp
@@ -189,12 +190,11 @@ resamp.SetProjection(referenceProj)
 gdal.ReprojectImage(land,resamp,inputProj,referenceProj,gdalconst.GRA_Average) # use mean for resampling approach
 del resampled
 """
-#resamp = gdal.Open("/Users/mariusderenthal/Google Drive/Global Change Geography/4.Semester/Geoprocessing_Python/MAP/MAP_data/inter/resampled.tif")
-#resamp_arr = resamp.ReadAsArray()
+resamp = gdal.Open("/Users/mariusderenthal/Google Drive/Global Change Geography/4.Semester/Geoprocessing_Python/MAP/MAP_data/inter/resampled.tif")
+resamp_arr = resamp.ReadAsArray()
 
 # reclassify
 """
-#resamp_arr[resamp_arr < 0] = 0
 resamp_arr[(resamp_arr >= 0) &(resamp_arr < 1000)] = 1
 resamp_arr[(resamp_arr >= 1000) & (resamp_arr < 2000)] = 2
 resamp_arr[(resamp_arr >= 2000) & (resamp_arr < 3000)] = 3
@@ -205,9 +205,9 @@ resamp_arr[(resamp_arr >= 6000) & (resamp_arr < 7000)] = 7
 resamp_arr[(resamp_arr >= 7000) & (resamp_arr < 8000)] = 8
 resamp_arr[(resamp_arr >= 8000) & (resamp_arr < 9000)] = 9
 resamp_arr[(resamp_arr >= 9000) & (resamp_arr < 10000)] = 10
-#resamp_arr[resamp_arr >= 10000 ] = 11
 
 # create new file
+driver= gdal.GetDriverByName('GTiff')
 file2 = driver.Create(path_data_folder + 'inter/reclassified.tif', resamp.RasterXSize , resamp.RasterYSize , 1)
 file2.GetRasterBand(1).WriteArray(resamp_arr)
 
@@ -217,25 +217,84 @@ georef = resamp.GetGeoTransform()
 file2.SetProjection(proj)
 file2.SetGeoTransform(georef)
 file2.FlushCache()
+print("Done reclassifying the landsat image at:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
 """
 reclass = gdal.Open("/Users/mariusderenthal/Google Drive/Global Change Geography/4.Semester/Geoprocessing_Python/MAP/MAP_data/inter/reclassified.tif")
 reclass_arr = reclass.ReadAsArray()
 
 print("Done loading files at:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
 
-
-# create mask
+# get rid of NAs -create composites
 nodata = -9999
-
-
-#modis_arr[(modis_arr == nodata)] = np.nan
-
 #print(modis_arr.shape)
-modis_arr = modis_arr[0:46,:,:]
 print("MODIS SHAPE: ",modis_arr.shape)
 print("MODIS MIN: ",modis_arr.min())
 print("MODIS MAX: ",modis_arr.max())
-print(modis_arr)
+#print(modis_arr)
+
+modis_arr = modis_arr[0:46,:,:]
+modis_arr[(modis_arr == nodata)] = np.nan
+print("MODIS SHAPE: ",modis_arr.shape)
+print("MODIS MIN: ",modis_arr.min())
+print("MODIS MAX: ",modis_arr.max())
+#print(modis_arr)
+
+meani = np.nanmean(modis_arr, axis=0)
+print("Done calculating mean:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+stdi = np.nanstd(modis_arr, axis=0)
+print("Done calculating std:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+#vari = np.nanvar(modis_arr, axis=0)
+#print("Done calculating variance:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+maxi = np.nanmax(modis_arr, axis=0)
+print("Done calculating maximum:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+mini = np.nanmin(modis_arr, axis=0)
+print("Done calculating minimum:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+#percenti25 = np.nanpercentile(modis_arr,25, axis=0)
+#percenti50 = np.nanpercentile(modis_arr,25, axis=0)
+#percenti75 = np.nanpercentile(modis_arr,25, axis=0)
+print("Done calculating percentiles:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+
+compi = np.stack((meani
+                   ,stdi
+                   #,vari
+                   ,maxi
+                   ,mini
+                   #,percenti25
+                   #,percenti50
+                   #,percenti75
+                   ))
+
+print("Done creating composite:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("COMPOSITE SHAPE: ",compi.shape)
+print("COMPOSITE MIN: ",compi.min())
+print("COMPOSITE MAX: ",compi.max())
+#print(compi)
+
+"""
+# create new file
+driver= gdal.GetDriverByName('GTiff')
+file2 = driver.Create(path_data_folder + 'inter/composite.tif', resamp.RasterXSize , resamp.RasterYSize , 4, gdal.GDT_Float32)
+file2.GetRasterBand(1).WriteArray(compi[0,:,:])
+file2.GetRasterBand(2).WriteArray(compi[1,:,:])
+file2.GetRasterBand(3).WriteArray(compi[2,:,:])
+file2.GetRasterBand(4).WriteArray(compi[3,:,:])
+
+# spatial ref system
+proj = resamp.GetProjection()
+georef = resamp.GetGeoTransform()
+file2.SetProjection(proj)
+file2.SetGeoTransform(georef)
+file2.FlushCache()
+#print("Done reclassifying the landsat image at:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+"""
+
+# create mask
+"""
+#print(modis_arr.shape)
+print("MODIS SHAPE: ",modis_arr.shape)
+print("MODIS MIN: ",modis_arr.min())
+print("MODIS MAX: ",modis_arr.max())
+#print(modis_arr)
 
 #modis_arr[modis_arr == np.nan] = nodata
 #modis_arr = np.putmask(modis_arr, modis_arr == np.nan, nodata)
@@ -246,13 +305,13 @@ minimum = np.min(modis_arr, axis=0)
 print("MIN SHAPE: ",minimum.shape)
 print("MIN MIN: ",minimum.min())
 print("MIN MAX: ",minimum.max())
-print(minimum)
+#print(minimum)
 
 maximum = np.max(modis_arr, axis=0)
 print("MAX SHAPE: ",maximum.shape)
 print("MAX MIN: ",maximum.min())
 print("MAX MAX: ",maximum.max())
-print(maximum)
+#print(maximum)
 
 #nodatamask = test == nodata
 #print("Mask SHAPE: ",nodatamask.shape)
@@ -260,7 +319,7 @@ print(maximum)
 #print("Mask MAX: ",nodatamask.max())
 
 mask = maximum == nodata
-print(mask)
+#print(mask)
 
 # apply mask
 print("LANDSAT SHAPE: ",reclass_arr.shape)
@@ -272,8 +331,8 @@ landsat_arr_m = np.where(mask == True, nodata, reclass_arr)
 print("Masked Landsat SHAPE: ",landsat_arr_m.shape)
 print("Masked Landsat MIN: ",landsat_arr_m.min())
 print("Masked Landsat MAX: ",landsat_arr_m.max())
-print(landsat_arr_m)
-
+#print(landsat_arr_m)
+"""
 
 # stratified random sampling (Ass.09)
 """
@@ -302,6 +361,8 @@ for classes in np.unique(resamp_arr):
 
 df_trans = df.T
 """
+
+
 # ####################################### END TIME-COUNT AND PRINT TIME STATS##################
 print("")
 endtime = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
