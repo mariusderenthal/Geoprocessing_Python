@@ -40,6 +40,7 @@ printed to the console.
 import time
 import os
 import gdal, gdalconst
+from pathlib import Path
 # import gdal_merge as gm
 
 import subprocess, glob
@@ -121,11 +122,11 @@ def compositingF(raster_path):
                           # ,percenti50
                           # ,percenti75
     ))
-    return compi_arr
+    return ras_file, compi_arr
 
-def classifyF (raster, raster_path):
+def classifyF (raster, ras_file):
 
-    ras_file = gdal.Open(raster_path)
+    #ras_file = gdal.Open(raster_path)
     x_size = ras_file.RasterXSize
     y_size = ras_file.RasterYSize
 
@@ -151,8 +152,41 @@ def classifyF (raster, raster_path):
     # back transform into 1500|1500
     land_fit = land_fit.reshape(y_size, x_size)
     # print("classification Shape: ", land_fit.shape)
-    return land_fit
+    return x_size, y_size, land_fit
 
+
+def export_F (raster, raster_path, x_size, y_size,ras_file):
+    #ds = gdal.Open(path_data_folder + inter + '/mosaic.tif')
+    drv = gdal.GetDriverByName('GTiff')
+
+    # modify file names
+    #files_no_ext = [".".join(f.split(".")[:-1]) for f in os.listdir('../MAP/MAP_data/MODIS_EVI')]
+    #files_no_ext.sort()
+    #files_no_ext = files_no_ext[1:]
+    #counter = 0
+    #for j, i in zip(class_raster, files_no_ext):
+    #ras_file = gdal.Open(raster_path)
+
+    i = Path(raster_path).stem
+
+    #x_size = ras_file.RasterXSize
+    #y_size = ras_file.RasterYSize
+    dst_ds = drv.Create(path_data_folder + output + i + "_RF-results.tif", x_size, y_size, 1, gdal.GDT_Float64, [])
+    dst_band = dst_ds.GetRasterBand(1)
+    # write the data
+    dst_band.WriteArray(raster, 0, 0)
+
+    # flush data to disk, set the NoData value and calculate stats
+    dst_band.FlushCache()
+
+    dst_ds.SetGeoTransform(ras_file.GetGeoTransform())
+    dst_ds.SetProjection(ras_file.GetProjectionRef())
+    dst_ds = None
+
+def MAP_F (raster_path):
+    ras_file, comp = compositingF(raster_path)
+    x_size, y_size, raster = classifyF(comp, ras_file)
+    export_F(raster, raster_path, x_size, y_size,ras_file)
 
 
 # ####################################### FOLDER PATHS & global variables ##################################### #
@@ -338,8 +372,8 @@ print("Step 3: reclassification DONE", time.strftime("%a, %d %b %Y %H:%M:%S", ti
 
 
 # Step 4: compositing --------------------------------------------------------------------------------------------------
-compi_output = Parallel(n_jobs=3)(delayed(compositingF)(i) for i in tiles_list)
-
+#compi_output = Parallel(n_jobs=3)(delayed(compositingF)(i) for i in tiles_list)
+"""
 #manual steps
 nodata = -9999
 # get rid of NAs -create composites
@@ -372,7 +406,7 @@ compi_arr = np.stack((meani
                    #,percenti50
                    #,percenti75
                    ))
-
+"""
 """ Optional export of results
 # create new file
 driver= gdal.GetDriverByName('GTiff')
@@ -391,8 +425,8 @@ file2.SetGeoTransform(georef)
 file2.FlushCache()
 #print("Done reclassifying the landsat image at:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
 """
-#compi = gdal.Open(path_data_folder + inter +"/" + "composite.tif")     #shortcut after first successful run
-#compi_arr = compi.ReadAsArray()
+compi = gdal.Open(path_data_folder + inter +"/" + "composite.tif")     #shortcut after first successful run
+compi_arr = compi.ReadAsArray()
 print("Step 4: compositing DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
 
 
@@ -566,7 +600,8 @@ print("Step 8: classification report DONE", time.strftime("%a, %d %b %Y %H:%M:%S
 
 
 # Step 9: apply to raster ----------------------------------------------------------------------------------------------
-class_raster = Parallel(n_jobs=3)(delayed(classifyF)(i,j) for i,j in zip(compi_output,tiles_list))
+#class_raster = Parallel(n_jobs=3)(delayed(classifyF)(i,j) for i,j in zip(compi_output,tiles_list))
+Parallel(n_jobs=3)(delayed(MAP_F)(i) for i in tiles_list)
 """
 # reduce (reshape and reorder axis from 30|1500|1500 to 1000000|30)
 #print("composite Shape: ", compi_arr.shape)
@@ -625,7 +660,7 @@ print("Step 10: plotting NOT DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.
 
 
 
-
+"""
 # Step 11: export land cover map as GeoTiff ----------------------------------------------------------------------------
 ds = gdal.Open(path_data_folder + inter + '/composite.tif')
 drv = gdal.GetDriverByName('GTiff')
@@ -655,7 +690,7 @@ for j, i in zip(class_raster, files_no_ext):
 
     dst_ds = None
 
-
+"""
 """
 colors = dict((
     (1, (255, 0, 0)),  # Artificial
@@ -679,6 +714,8 @@ print("Step 11: exporting results DONE", time.strftime("%a, %d %b %Y %H:%M:%S", 
 
 # 12. export sample points as Shape------------------------------------------------------------------------------
 # get the envelope
+ds = gdal.Open(path_data_folder + inter + '/composite.tif')
+
 geoTransform = ds.GetGeoTransform()
 xmin = geoTransform[0]
 ymax = geoTransform[3]
@@ -691,7 +728,7 @@ ymin = ymax + geoTransform[5] * ds.RasterYSize
 driver = ogr.GetDriverByName("ESRI Shapefile")
 
 # create the data source
-data_source = driver.CreateDataSource("/Users/mariusderenthal/Google Drive/Global Change Geography/4.Semester/Geoprocessing_Python/MAP/MAP_data/output/sample_points.shp")
+data_source = driver.CreateDataSource(path_data_folder + output + "/sample_points.shp")
 
 # create the spatial reference, WGS84
 lyr = ds.GetLayer
