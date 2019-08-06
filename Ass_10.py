@@ -137,7 +137,7 @@ samp_df = pd.read_csv(path_data_folder + samples)
 
 # ####################################### PROCESSING ########################################################## #
 # 1. separate dependent from independent-------------------------------------------------------------------------
-y_df = x_np = samp_df.iloc[:, 0]
+y_df = samp_df.iloc[:, 0]
 x_df = samp_df.iloc[:, 1:]
 
 
