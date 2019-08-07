@@ -139,7 +139,7 @@ def classifyF (raster, raster_path):
     land_rs = StandardScaler().fit(land_rs.astype('float64')).transform(land_rs.astype('float64'))
 
     #fill nas with mean
-    imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+    imp = SimpleImputer(missing_values=np.nan, strategy='constant')
     imp = imp.fit(land_rs)
     land_rs_imp = imp.transform(land_rs)
     # land_rs.fillna(land_rs.mean(), inplace=True)
@@ -627,7 +627,7 @@ print("Step 10: plotting NOT DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.
 
 
 # Step 11: export land cover map as GeoTiff ----------------------------------------------------------------------------
-ds = gdal.Open(path_data_folder + inter + '/composite.tif')
+#ds = gdal.Open(path_data_folder + inter + '/composite.tif')
 drv = gdal.GetDriverByName('GTiff')
 
 # modify file names
@@ -691,7 +691,7 @@ ymin = ymax + geoTransform[5] * ds.RasterYSize
 driver = ogr.GetDriverByName("ESRI Shapefile")
 
 # create the data source
-data_source = driver.CreateDataSource("/Users/mariusderenthal/Google Drive/Global Change Geography/4.Semester/Geoprocessing_Python/MAP/MAP_data/output/sample_points.shp")
+data_source = driver.CreateDataSource(path_data_folder + output + "/sample_points.shp")
 
 # create the spatial reference, WGS84
 lyr = ds.GetLayer
