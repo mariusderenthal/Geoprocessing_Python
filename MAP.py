@@ -97,11 +97,11 @@ def compositing_func(raster_path):
 
     # calculate spectral-temporal indices
     meani = np.nanmean(ras_arr, axis=0)
-    #meadi = np.nanmedian(ras_arr, axis=0)
+    meadi = np.nanmedian(ras_arr, axis=0)
     stdi = np.nanstd(ras_arr, axis=0)
     maxi = np.nanmax(ras_arr, axis=0)
     mini = np.nanmin(ras_arr, axis=0)
-    vari = np.nanvar(modis_arr, axis=0)
+    #vari = np.nanvar(modis_arr, axis=0)
     # percenti25 = np.nanpercentile(modis_arr,25, axis=0)
     # percenti50 = np.nanpercentile(modis_arr,50, axis=0)
     # percenti75 = np.nanpercentile(modis_arr,75, axis=0)
@@ -410,7 +410,7 @@ print("Step 6: sampling DONE:", time.strftime("%a, %d %b %Y %H:%M:%S", time.loca
 
 # Step 7: Classification -----------------------------------------------------------------------------------------------
 # Step7.1: data separation
-y_df = df_samples.iloc[:, 5]
+y_df = df_samples.iloc[:,5]
 x_df = df_samples.iloc[:, 0:5]
 print("Step 7.1: data separation DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
 
