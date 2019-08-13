@@ -7,34 +7,17 @@
 #
 # ####################################### WORKFLOW ############################################################ #
 """
-1. Generate a stratified random sample of 500 points across the MODIS extent.
-- reproject landsat into modis projection (instead of GeoTIFF we use Memory to do it on the fly)                $$$
-- resample landsat to MODIS resolution (book chapter - mean )                                                   $$$
-- reclassify landsat image into classes (strata) or continuous data stratify                                    $$$
-- create mask using valid MODIS raster
-- apply mask to Landsat image
-- generate sample locations
-- extract xy cooridnates and apply minimium distance filter
-
-
-2. Extract the mean Landsat-based tree-cover for each MODIS pixel sample. This information will be
-your reference dataset.
-- extract tree cover from previously sampled random cooridnates
-
-3. Extract the MODIS EVI values for each band (time step) and each sample.
-- iterate through MODIS images
-
-4. Parameterize a gradient boosting regression using the scikit-learn package, using the built-in
-functions that help finding the best parameter combination. The model performance should be
-printed to the console.
-- Assignment 10
-
-5. Make the tree-cover model prediction across all MODIS tiles by applying parallel processing.
-- Last session
-- working function
-
-
-6. The output that your script generates should be stored in a new sub-folder called output.
+Step 1: mosaicing ------------------------------------------------------------------------------------------------------
+Step 2: resampling -----------------------------------------------------------------------------------------------------
+Step 3: reclassification of Landsat image ------------------------------------------------------------------------------
+Step 4: compositing ----------------------------------------------------------------------------------------------------
+Step 5: masking --------------------------------------------------------------------------------------------------------
+Step 6: sampling stratified random sampling (Ass.09) -------------------------------------------------------------------
+Step 7: Classification -------------------------------------------------------------------------------------------------
+Step 8: classification report ------------------------------------------------------------------------------------------
+Step 9: apply to raster composites and export --------------------------------------------------------------------------
+    Step 10: plot classified map ---------------------------------------------------------------------------------------
+Step 11: export sample points as Shape----------------------------------------------------------------------------------
 """
 # ####################################### LOAD REQUIRED LIBRARIES ############################################# #
 import time
@@ -102,9 +85,9 @@ def compositing_func(raster_path):
     maxi = np.nanmax(ras_arr, axis=0)
     mini = np.nanmin(ras_arr, axis=0)
     #vari = np.nanvar(modis_arr, axis=0)
-    # percenti25 = np.nanpercentile(modis_arr,25, axis=0)
-    # percenti50 = np.nanpercentile(modis_arr,50, axis=0)
-    # percenti75 = np.nanpercentile(modis_arr,75, axis=0)
+    #percenti25 = np.nanpercentile(modis_arr,25, axis=0)
+    #percenti50 = np.nanpercentile(modis_arr,50, axis=0)
+    #percenti75 = np.nanpercentile(modis_arr,75, axis=0)
 
     compi_arr = np.stack((meani,
                           meadi,
@@ -137,7 +120,7 @@ def classify_func(raster, ras_file):
     # standardize (z-transform)
     land_rs = StandardScaler().fit(land_rs.astype('float64')).transform(land_rs.astype('float64'))
 
-    # fill nas with constant
+    # fill nas with mean value
     imp = SimpleImputer(missing_values=np.nan, strategy='mean')  # default value for 'constant' is 0
     imp = imp.fit(land_rs)
     land_rs_imp = imp.transform(land_rs)
@@ -145,6 +128,17 @@ def classify_func(raster, ras_file):
     # apply model to raster
     land_fit = model.predict(land_rs_imp)
     land_fit = land_fit.transpose()
+
+    # replace the most common output with NA (it is assumed that the most common output is the result of the mean replacement)
+    land_fit = land_fit.astype(np.int)
+    count = np.bincount(land_fit)
+
+    mode = np.argmax(count)
+
+    mode = mode.astype(np.float)
+    land_fit = land_fit.astype(np.float)
+
+    land_fit[land_fit == mode] = np.nan
 
     # back-transform to original form
     land_fit = land_fit.reshape(y_size, x_size)
@@ -163,7 +157,7 @@ def export_func(raster, raster_path, x_size, y_size, ras_file):
     """
     name = Path(raster_path).stem
     drv = gdal.GetDriverByName('GTiff')
-    dst_ds = drv.Create(path_data_folder + output + name + "_RF-results.tif", x_size, y_size, 1, gdal.GDT_Float64, [])
+    dst_ds = drv.Create(path_data_folder + output + name + "_RF-results.tif", x_size, y_size, 1, gdal.GDT_Int32, [])
     dst_band = dst_ds.GetRasterBand(1)
 
     # write the data
@@ -212,14 +206,15 @@ np.random.seed(seed=8)
 # ####################################### PROJECTION ########################################################## #
 # No re-projection required
 # ####################################### Data ################################################################ #
+# landsat data
 land = gdal.Open(path_data_folder + landsat)
 
+# all files in folder
+tiles_list = glob.glob(path_data_folder + modis + "*.tif")
 # ####################################### PROCESSING ########################################################## #
 # Step 1: mosaicing ----------------------------------------------------------------------------------------------------
+print("Step 1: mosaicing STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 # https://gis.stackexchange.com/questions/44003/python-equivalent-of-gdalbuildvrt#44048
-# All files in folder
-tiles_list = glob.glob(path_data_folder + modis + "*.tif")
-
 # set output path
 output_mosaic = path_data_folder + '/inter/mosaic.tif'
 
@@ -231,9 +226,13 @@ mosaic = gdal.BuildVRT(output_mosaic, tiles_list, options=vrt_options)
 
 # mosaic = gdal.Open(path_data_folder + inter +"/" + "mosaic.tif")     #shortcut after first successful run
 modis_arr = mosaic.ReadAsArray()
-print("Step 1: mosaicing DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 1: mosaicing DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
+
+
 
 # Step 2: resampling ---------------------------------------------------------------------------------------------------
+print("Step 2: resampling STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 # https://gis.stackexchange.com/questions/234022/resampling-a-raster-from-python-without-using-gdalwarp
 # open landsat file and retrieve basic information
 land = gdal.Open(path_data_folder + landsat)
@@ -258,9 +257,13 @@ del resampled
 
 # resamp = gdal.Open(path_data_folder + inter +"/" + "resampled.tif")     #shortcut after first successful run
 resamp_arr = resamp.ReadAsArray()
-print("Step 2: resampling DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 2: resampling DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
+
+
 
 # Step 3: reclassification of Landsat image ----------------------------------------------------------------------------
+print("Step 3: reclassification of Landsat image STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 # classify resampled landsat image in order to perform stratified sampling (5 classes)
 reclass_arr = resamp_arr.copy()
 reclass_arr[(reclass_arr >= 0) & (reclass_arr < 2000)] = 1
@@ -284,9 +287,13 @@ print("Done reclassifying the landsat image at:", time.strftime("%a, %d %b %Y %H
 """
 # reclass = gdal.Open(path_data_folder + inter +"/" + "reclassified.tif")     #shortcut after first successful run
 # reclass_arr = reclass.ReadAsArray()
-print("Step 3: reclassification of Landsat image DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 3: reclassification of Landsat image DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
+
+
 
 # Step 4: compositing --------------------------------------------------------------------------------------------------
+print("Step 4: compositing STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 # handle no data pixels
 nodata = -9999
 modis_arr = modis_arr[0:46, :, :]
@@ -299,9 +306,9 @@ stdi = np.nanstd(modis_arr, axis=0)
 maxi = np.nanmax(modis_arr, axis=0)
 mini = np.nanmin(modis_arr, axis=0)
 #vari = np.nanvar(modis_arr, axis=0)
-# percenti25 = np.nanpercentile(modis_arr,25, axis=0)
-# percenti50 = np.nanpercentile(modis_arr,25, axis=0)
-# percenti75 = np.nanpercentile(modis_arr,25, axis=0)
+#percenti25 = np.nanpercentile(modis_arr,25, axis=0)
+#percenti50 = np.nanpercentile(modis_arr,25, axis=0)
+#percenti75 = np.nanpercentile(modis_arr,25, axis=0)
 
 # stack spectral temporal indices into array
 compi_arr = np.stack((meani
@@ -310,9 +317,9 @@ compi_arr = np.stack((meani
                       , maxi
                       , mini
                       #, vari
-                      # percenti25,
-                      # percenti50,
-                      # percenti75
+                      #, percenti25
+                      #, percenti50
+                      #, percenti75
                       ))
 
 """ Optional export of results
@@ -334,9 +341,13 @@ file2.FlushCache()
 """
 # compi = gdal.Open(path_data_folder + inter + "/" + "composite.tif")  # shortcut after first successful run
 # compi_arr = compi.ReadAsArray()
-print("Step 4: compositing DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 4: compositing DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
+
+
 
 # Step 5: masking ------------------------------------------------------------------------------------------------------
+print("Step 5: masking STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 # based on entire mosaic
 mask1 = np.logical_not(np.isnan(compi_arr[0, :, :]))
 
@@ -347,8 +358,12 @@ reclass_arr_m = np.where(mask1 == True, reclass_arr, np.nan)
 resamp_arr_m = np.where(mask1 == True, resamp_arr, np.nan)
 
 print("Step 5: masking DONE:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print()
+
+
 
 # Step 6: sampling stratified random sampling (Ass.09) -----------------------------------------------------------------
+print("Step 6: sampling STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 # create empty data frame to store spectral information
 df = pd.DataFrame(columns={'TC': [],
                            'Band01': [],
@@ -406,21 +421,25 @@ df_samples = unnesting(df, ['Band01', 'Band02', 'Band03', 'Band04','Band05', 'TC
 
 # unnest/explode sample point information within data frame
 sample_points = unnesting(sample_p, ['x', 'y'])
-print("Step 6: sampling DONE:", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 6: sampling DONE:", time.strftime("%H:%M:%S", time.localtime()))
+print()
+
+
 
 # Step 7: Classification -----------------------------------------------------------------------------------------------
+print("Step 7: classification STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 # Step7.1: data separation
 y_df = df_samples.iloc[:,5]
 x_df = df_samples.iloc[:, 0:5]
-print("Step 7.1: data separation DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 7.1: data separation DONE", time.strftime("%H:%M:%S", time.localtime()))
 
 # Step 7.2: z-transformation
 x_df_scaled = StandardScaler().fit(x_df.astype('float64')).transform(x_df.astype('float64'))
-print("Step 7.2: z-transformation DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 7.2: z-transformation DONE", time.strftime("%H:%M:%S", time.localtime()))
 
 # Step 7.3: data split (training, validation
 x_train, x_test, y_train, y_test = train_test_split(x_df_scaled, y_df, test_size=0.5, random_state=42)
-print("Step 7.3: data split DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 7.3: data split DONE", time.strftime("%H:%M:%S", time.localtime()))
 
 # Step 7.4: hyper parameter selection (grid search)
 est = GradientBoostingRegressor(n_estimators=100)
@@ -433,26 +452,42 @@ param_grid = {'learning_rate': [0.1, 0.05, 0.02, 0.01],
 
 grid = GridSearchCV(est, param_grid, cv=5, iid=False, n_jobs=3).fit(x_train, y_train)
 grid.get_params()
-print("Step 7.4: hyper parameter selection DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 7.4: hyper parameter selection DONE", time.strftime("%H:%M:%S", time.localtime()))
 
 # Step 7.5: fitting best model
 model = grid.best_estimator_
 y_fit = model.predict(x_test)
-print("Step 7.5: fitting best model DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 7.5: fitting best model DONE", time.strftime("%H:%M:%S", time.localtime()))
+print("Step 7: classification DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
+
+
 
 # Step 8: classification report ----------------------------------------------------------------------------------------
+print("Step 8: classification report STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 mse = mean_squared_error(y_test, y_fit)
 print("Model Perfomance - mean squared error (MSE): %.4f" % mse)
-print("Step 8: classification report DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 8: classification report DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
+
+
 
 # Step 9: apply to raster composites and export ------------------------------------------------------------------------
+print("Step 9: apply to raster STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 Parallel(n_jobs=3)(delayed(map_func)(i) for i in tiles_list)
-print("Step 9: apply to raster DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 9: apply to raster DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
+
+
 
 # Step 10: plot classified map -----------------------------------------------------------------------------------------
-print("Step 10: plotting NOT DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 10: plotting NOT DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
+
+
 
 # Step 11: export sample points as Shape--------------------------------------------------------------------------------
+print("Step 11: exporting sample points as .shp STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 # get the envelope
 ds = gdal.Open(path_data_folder + inter + 'mosaic.tif')
 geoTransform = ds.GetGeoTransform()
@@ -506,7 +541,8 @@ for index, row in sample_points.iterrows():
     # create the feature in the layer
     layer.CreateFeature(feature)
 
-print("Step 11: exporting sample points as .shp DONE", time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime()))
+print("Step 11: exporting sample points as .shp DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
 # ####################################### END TIME-COUNT AND PRINT TIME STATS##################
 print("")
 endtime = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
