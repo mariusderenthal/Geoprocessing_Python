@@ -1,10 +1,13 @@
-# ############################################################################################################# #
-# Raw-example for a basic script to be executed in python. The format is only a recommendation and everyone is  #
-# encouraged to modify the scripts to her/his own needs.                                                        #
-# (c) Matthias Baumann, Humboldt-Universität zu Berlin, 4/15/2019
-#
-# Assignment 10: Marius Derenthal
-#
+# ####################################### INFORMATION ######################################################### #
+# The basic script structure was taken from Matthias Baumann, Humboldt-Universität zu Berlin and has been
+# modified to specific requirements.
+# Autor: Marius Derenthal
+
+# ####################################### TASK ################################################################ #
+# Train and evaluate a support vector machine classification to produce and assess a land cover map using a
+# sample of Landsat pixels with known reference labels (land cover) and extracted statistical features as
+# predictors.
+
 # ####################################### WORKFLOW ############################################################ #
 """
 0. load Data
@@ -15,8 +18,8 @@
 5. select best model parameters and fit
 6. classification report
 7. apply model to raster
-8. plot classified map
-9.
+# 8. plot classified map
+9. export landcover map
 """
 # ####################################### LOAD REQUIRED LIBRARIES ############################################# #
 import time
@@ -50,15 +53,38 @@ starttime = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
 print("--------------------------------------------------------")
 print("Starting process, time: " + starttime)
 print("")
+
 # ####################################### FUNCTIONS ########################################################### #
+
 # ####################################### FOLDER PATHS & global variables ##################################### #
 # Folder containing the working data
-path_data_folder = '/Users/mariusderenthal/Google Drive/Global Change Geography/4.Semester/Geoprocessing_Python/Data/Assignment10_data/'
+path_data_folder = ''
+
+# Landsat imagery and samples
 landsat_p = "landsat8_metrics1416.tif"
 samples = 'landsat8_metrics1416_samples.csv'
 
+# create folder to save intermediate results
+inter_folder = (path_data_folder + 'inter')
+if not os.path.exists(inter_folder):
+    os.makedirs(inter_folder)
+
+# create folder to save final results
+output_folder = (path_data_folder + 'output')
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+
+# create path variables for intermediate and finals results
+inter = 'inter/'
+output = 'output/'
+
+# set seed to make results replicable
+np.random.seed(seed=8)
+
 # ####################################### PROJECTION ########################################################## #
-'''
+''' 
+# In case a reprojection is required run the following section
+
 # Transform LUCAS points projection
 
 # EPSGS
@@ -137,19 +163,29 @@ samp_df = pd.read_csv(path_data_folder + samples)
 
 # ####################################### PROCESSING ########################################################## #
 # 1. separate dependent from independent-------------------------------------------------------------------------
+print("Step 1: separating dependent from independent STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 y_df = samp_df.iloc[:, 0]
 x_df = samp_df.iloc[:, 1:]
 
+print("Step 1: separating dependent from independent DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
 
 # 2. standardize predictors (z-transform)------------------------------------------------------------------------
+print("Step 2: standardizing predictors STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 x_df_scaled = StandardScaler().fit(x_df.astype('float64')).transform(x_df.astype('float64'))
 
+print("Step 2: standardizing predictors DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
 
 # 3. split data set into training and validation data------------------------------------------------------------
+print("Step 3: splitting data set into training and validation data STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 Xtrain, Xtest, ytrain, ytest = train_test_split(x_df_scaled, y_df, test_size=0.5, random_state=42)
 
+print("Step 3: splitting data set into training and validation data DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
 
 # 4. hyper parameter selection (grid search)---------------------------------------------------------------------
+print("Step 4: selecting hyper parameter STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 svc = SVC(kernel='rbf', class_weight='balanced')
 svc.get_params()
 
@@ -160,13 +196,19 @@ param_grid = {'C': [1, 5, 10, 50, 100, 1000],
 grid = GridSearchCV(svc, param_grid, cv=5, iid=False)
 grid.fit(Xtrain, ytrain)
 
+print("Step 4: selecting hyper parameter DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
 
 # 5. select best model parameters and fit------------------------------------------------------------------------
+print("Step 5: selecting best model parameters and fit STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 model = grid.best_estimator_
 yfit = model.predict(Xtest)
 
+print("Step 5: selecting best model parameters and fit DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
 
 # 6. classification report---------------------------------------------------------------------------------------
+print("Step 6: classification report:", time.strftime("%H:%M:%S", time.localtime()))
 print(classification_report(ytest, yfit,
                             #target_names=faces.target_names
                             ))
@@ -176,11 +218,12 @@ sns.heatmap(mat.T, square=True, annot=True, fmt='d', cbar=False
             #,xticklabels=faces.target_names,
             #yticklabels=faces.target_names
             )
-plt.xlabel('true label')
-plt.ylabel('predicted label')
-plt.show()
+#plt.xlabel('true label')
+#plt.ylabel('predicted label')
+#plt.show()
 
-# 7. apply to raster---------------------------------------------------------------------------------------------
+# 7. apply classifier to raster----------------------------------------------------------------------------------
+print("Step 7: applying classifier to raster STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 # reduce (reshape and reorder axis from 30|1500|1500 to 1000000|30)
 land_rs = land_arr_all.reshape((land_arr_all.shape[0], -1))
 land_rs = land_rs.transpose()
@@ -194,6 +237,9 @@ land_fit = land_fit.transpose()
 
 # back transform into 1500|1500
 land_fit = land_fit.reshape(int(math.sqrt(land_fit.shape[0])), -1)
+
+print("Step 7: applying classifier to raster DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
 
 # 8. plot classified map-----------------------------------------------------------------------------------------
 '''
@@ -222,12 +268,12 @@ cmap = plt.matplotlib.colors.ListedColormap(index_colors, 'Classification', land
 #plt.show()
 '''
 
-
 # 9. export land cover map as GeoTiff----------------------------------------------------------------------------
+print("Step 9: exporting land cover map as GeoTiff STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 ds = gdal.Open(path_data_folder + landsat_p)
 
 drv = gdal.GetDriverByName('GTiff')
-dst_ds = drv.Create(path_data_folder + "classification_output.tif", 1500, 1500, 1, gdal.GDT_Byte, [])
+dst_ds = drv.Create(path_data_folder + output + "classification_output.tif", 1500, 1500, 1, gdal.GDT_Byte, [])
 
 dst_band = dst_ds.GetRasterBand(1)
 
@@ -256,6 +302,9 @@ dst_ds.SetGeoTransform(ds.GetGeoTransform())
 dst_ds.SetProjection(ds.GetProjectionRef())
 
 dst_ds = None
+
+print("Step 9: exporting land cover map as GeoTiff DONE", time.strftime("%H:%M:%S", time.localtime()))
+print()
 
 # ####################################### END TIME-COUNT AND PRINT TIME STATS##################
 print("")
