@@ -1,27 +1,26 @@
-# ####################################### INFORMATION ######################################################### #
+# ####################################### INFORMATION ################################################################ #
 # The basic script structure was taken from Matthias Baumann, Humboldt-Universität zu Berlin and has been
 # modified to specific requirements.
 # Autor: Marius Derenthal
 
-# ####################################### TASK ################################################################ #
+# ####################################### TASK ####################################################################### #
 # Train and evaluate a support vector machine classification to produce and assess a land cover map using a
 # sample of Landsat pixels with known reference labels (land cover) and extracted statistical features as
 # predictors.
 
-# ####################################### WORKFLOW ############################################################ #
+# ####################################### WORKFLOW ################################################################### #
 """
-0. load Data
-1. separate dependent from independent
-2. standardize predictors (z-transform)
-3. split data set into training and validation data
-4. hyper parameter selection (grid search)
-5. select best model parameters and fit
-6. classification report
-7. apply model to raster
-# 8. plot classified map
-9. export landcover map
+1. separate dependent from independent ---------------------------------------------------------------------------------
+2. standardize predictors (z-transform) --------------------------------------------------------------------------------
+3. split data set into training and validation data --------------------------------------------------------------------
+4. hyper parameter selection (grid search) -----------------------------------------------------------------------------
+5. select best model parameters and fit --------------------------------------------------------------------------------
+6. classification report -----------------------------------------------------------------------------------------------
+7. apply model to raster -----------------------------------------------------------------------------------------------
+8. plot classified map -------------------------------------------------------------------------------------------------
+9. export landcover map ------------------------------------------------------------------------------------------------
 """
-# ####################################### LOAD REQUIRED LIBRARIES ############################################# #
+# ####################################### LOAD REQUIRED LIBRARIES #################################################### #
 import time
 import os
 import gdal
@@ -48,15 +47,15 @@ import seaborn as sns
 
 sns.set()
 
-# ####################################### SET TIME-COUNT ###################################################### #
+# ####################################### SET TIME-COUNT ############################################################# #
 starttime = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
 print("--------------------------------------------------------")
 print("Starting process, time: " + starttime)
 print("")
 
-# ####################################### FUNCTIONS ########################################################### #
+# ####################################### FUNCTIONS ################################################################## #
 
-# ####################################### FOLDER PATHS & global variables ##################################### #
+# ####################################### FOLDER PATHS & global variables ############################################ #
 # Folder containing the working data
 path_data_folder = ''
 
@@ -81,7 +80,7 @@ output = 'output/'
 # set seed to make results replicable
 np.random.seed(seed=8)
 
-# ####################################### PROJECTION ########################################################## #
+# ####################################### PROJECTION ################################################################# #
 ''' 
 # In case a reprojection is required run the following section
 
@@ -151,7 +150,7 @@ while inFeature:
 inDataSet = None
 outDataSet = None
 '''
-# ####################################### Data ################################################################ #
+# ####################################### Data ####################################################################### #
 # 0. load Data
 # landsat_metrics
 land = gdal.Open(path_data_folder + landsat_p)
@@ -161,8 +160,8 @@ land_arr_all = land.ReadAsArray()
 # samples
 samp_df = pd.read_csv(path_data_folder + samples)
 
-# ####################################### PROCESSING ########################################################## #
-# 1. separate dependent from independent-------------------------------------------------------------------------
+# ####################################### PROCESSING ################################################################# #
+# Step 1. separate dependent from independent --------------------------------------------------------------------------
 print("Step 1: separating dependent from independent STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 y_df = samp_df.iloc[:, 0]
 x_df = samp_df.iloc[:, 1:]
@@ -170,21 +169,21 @@ x_df = samp_df.iloc[:, 1:]
 print("Step 1: separating dependent from independent DONE", time.strftime("%H:%M:%S", time.localtime()))
 print()
 
-# 2. standardize predictors (z-transform)------------------------------------------------------------------------
+# Step 2. standardize predictors (z-transform) -------------------------------------------------------------------------
 print("Step 2: standardizing predictors STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 x_df_scaled = StandardScaler().fit(x_df.astype('float64')).transform(x_df.astype('float64'))
 
 print("Step 2: standardizing predictors DONE", time.strftime("%H:%M:%S", time.localtime()))
 print()
 
-# 3. split data set into training and validation data------------------------------------------------------------
+# Step 3. split data set into training and validation data -------------------------------------------------------------
 print("Step 3: splitting data set into training and validation data STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 Xtrain, Xtest, ytrain, ytest = train_test_split(x_df_scaled, y_df, test_size=0.5, random_state=42)
 
 print("Step 3: splitting data set into training and validation data DONE", time.strftime("%H:%M:%S", time.localtime()))
 print()
 
-# 4. hyper parameter selection (grid search)---------------------------------------------------------------------
+# Step 4. hyper parameter selection (grid search) ----------------------------------------------------------------------
 print("Step 4: selecting hyper parameter STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 svc = SVC(kernel='rbf', class_weight='balanced')
 svc.get_params()
@@ -199,7 +198,7 @@ grid.fit(Xtrain, ytrain)
 print("Step 4: selecting hyper parameter DONE", time.strftime("%H:%M:%S", time.localtime()))
 print()
 
-# 5. select best model parameters and fit------------------------------------------------------------------------
+# Step 5. select best model parameters and fit -------------------------------------------------------------------------
 print("Step 5: selecting best model parameters and fit STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 model = grid.best_estimator_
 yfit = model.predict(Xtest)
@@ -207,7 +206,7 @@ yfit = model.predict(Xtest)
 print("Step 5: selecting best model parameters and fit DONE", time.strftime("%H:%M:%S", time.localtime()))
 print()
 
-# 6. classification report---------------------------------------------------------------------------------------
+# Step 6. classification report ----------------------------------------------------------------------------------------
 print("Step 6: classification report:", time.strftime("%H:%M:%S", time.localtime()))
 print(classification_report(ytest, yfit,
                             #target_names=faces.target_names
@@ -222,7 +221,7 @@ sns.heatmap(mat.T, square=True, annot=True, fmt='d', cbar=False
 #plt.ylabel('predicted label')
 #plt.show()
 
-# 7. apply classifier to raster----------------------------------------------------------------------------------
+# Step 7. apply classifier to raster -----------------------------------------------------------------------------------
 print("Step 7: applying classifier to raster STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 # reduce (reshape and reorder axis from 30|1500|1500 to 1000000|30)
 land_rs = land_arr_all.reshape((land_arr_all.shape[0], -1))
@@ -241,7 +240,7 @@ land_fit = land_fit.reshape(int(math.sqrt(land_fit.shape[0])), -1)
 print("Step 7: applying classifier to raster DONE", time.strftime("%H:%M:%S", time.localtime()))
 print()
 
-# 8. plot classified map-----------------------------------------------------------------------------------------
+# Step 8. plot classified map ------------------------------------------------------------------------------------------
 '''
 # plot land cover map
 lcColors = {1: [1.0, 0.0, 0.0, 1.0],  # Artificial
@@ -268,7 +267,7 @@ cmap = plt.matplotlib.colors.ListedColormap(index_colors, 'Classification', land
 #plt.show()
 '''
 
-# 9. export land cover map as GeoTiff----------------------------------------------------------------------------
+# Step 9. export land cover map as GeoTiff -----------------------------------------------------------------------------
 print("Step 9: exporting land cover map as GeoTiff STARTED at:", time.strftime("%H:%M:%S", time.localtime()))
 ds = gdal.Open(path_data_folder + landsat_p)
 
@@ -306,7 +305,7 @@ dst_ds = None
 print("Step 9: exporting land cover map as GeoTiff DONE", time.strftime("%H:%M:%S", time.localtime()))
 print()
 
-# ####################################### END TIME-COUNT AND PRINT TIME STATS##################
+# ####################################### END TIME-COUNT AND PRINT TIME STATS ######################################## #
 print("")
 endtime = time.strftime("%a, %d %b %Y %H:%M:%S", time.localtime())
 print("--------------------------------------------------------")
